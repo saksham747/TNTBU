@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>DEMOLITION — Wreck It</title>
+<meta name="description" content="Pull back, let loose, level the block. A one-shot-at-a-time physics demolition game." />
+<meta name="theme-color" content="#1a1a1c" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --charcoal: #1a1a1c;
+    --concrete: #2b2b2e;
+    --concrete-light: #3d3d41;
+    --rust: #ff5a1f;
+    --hazard: #ffd23f;
+    --brick: #b23a2e;
+    --paper: #f2ede4;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%; overflow:hidden;
+    background:var(--charcoal); color:var(--paper);
+    font-family:'DM Sans', sans-serif;
+    touch-action:none; overscroll-behavior:none;
+  }
+  #gameWrap{position:fixed; inset:0; display:flex; align-items:center; justify-content:center;}
+  #hazardFrame{
+    position:absolute; inset:0; pointer-events:none; z-index:5;
+    box-shadow: inset 0 0 0 8px var(--charcoal);
+  }
+  #hazardFrame::before{
+    content:''; position:absolute; inset:0;
+    background:repeating-linear-gradient(135deg, var(--hazard) 0 22px, var(--charcoal) 22px 44px);
+    -webkit-mask: linear-gradient(#000,#000) content-box, linear-gradient(#000,#000);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    padding:6px;
+  }
+  canvas{display:block; background:linear-gradient(180deg,#3a3a3e 0%, #2b2b2e 55%, #232326 100%);}
+
+  #hud{position:absolute; top:0; left:0; right:0; z-index:10; padding:16px 18px 0; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none;}
+  .hud-pill{
+    background:var(--charcoal); border:2px solid var(--concrete-light);
+    padding:6px 14px; border-radius:6px; display:flex; align-items:center; gap:8px;
+  }
+  .hud-label{font-family:'Anton',sans-serif; font-size:11px; letter-spacing:2px; color:var(--hazard); opacity:.85;}
+  .hud-value{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:20px; color:var(--paper);}
+  #ballsRow{display:flex; gap:6px; margin-top:2px;}
+  .ball-pip{width:14px; height:14px; border-radius:50%; background:var(--rust); box-shadow:inset -2px -2px 0 rgba(0,0,0,.35), 0 0 0 2px var(--charcoal);}
+  .ball-pip.used{background:var(--concrete-light); box-shadow:none;}
+
+  #timerPill .hud-value{color:var(--hazard);}
+  #timerPill.low .hud-value{color:var(--brick); animation:pulse .5s infinite;}
+  @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.35}}
+
+  #titleBar{
+    position:absolute; top:16px; left:50%; transform:translateX(-50%); z-index:10;
+    font-family:'Anton',sans-serif; font-size:22px; letter-spacing:4px; color:var(--paper);
+    -webkit-text-stroke:1px var(--charcoal);
+    text-shadow: 2px 2px 0 var(--charcoal), 0 0 18px rgba(255,90,31,.5);
+    pointer-events:none;
+  }
+
+  .overlay{
+    position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
+    background:rgba(20,20,22,.72); backdrop-filter: blur(2px);
+  }
+  .card{
+    background:var(--concrete); border:3px solid var(--charcoal); border-radius:10px;
+    padding:32px 28px; max-width:340px; width:88%; text-align:center;
+    box-shadow:0 20px 50px rgba(0,0,0,.5), 0 0 0 4px var(--hazard) inset;
+  }
+  .card h1{
+    font-family:'Anton',sans-serif; font-size:42px; letter-spacing:2px; margin:0 0 4px;
+    color:var(--rust); text-shadow:3px 3px 0 var(--charcoal);
+  }
+  .card .sub{font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:2px; color:var(--hazard); margin-bottom:18px;}
+  .card p{font-size:14px; line-height:1.5; color:var(--paper); opacity:.85; margin:0 0 22px;}
+  .btn{
+    font-family:'Anton',sans-serif; letter-spacing:2px; font-size:18px; border:none; border-radius:6px;
+    padding:14px 20px; width:100%; cursor:pointer; background:var(--rust); color:var(--paper);
+    box-shadow:0 4px 0 #b23e12; transition:transform .05s;
+  }
+  .btn:active{transform:translateY(4px); box-shadow:0 0 0 #b23e12;}
+  .btn.secondary{background:var(--concrete-light); box-shadow:0 4px 0 #1d1d20; margin-top:10px; font-size:13px; padding:10px;}
+
+  #resultStamp{
+    font-family:'Anton',sans-serif; font-size:16px; letter-spacing:3px; color:var(--hazard);
+    border:3px solid var(--hazard); border-radius:6px; padding:6px 10px; display:inline-block;
+    transform:rotate(-4deg); margin-bottom:14px;
+  }
+  #resultPct{font-family:'JetBrains Mono',monospace; font-size:54px; font-weight:700; color:var(--paper); line-height:1;}
+  #resultScore{font-family:'DM Sans',sans-serif; font-size:13px; color:var(--hazard); margin:6px 0 20px; letter-spacing:1px;}
+
+  #installBtn{
+    position:absolute; bottom:14px; right:14px; z-index:15;
+    font-family:'DM Sans',sans-serif; font-size:12px; font-weight:700; letter-spacing:.5px;
+    background:var(--concrete); color:var(--paper); border:2px solid var(--hazard);
+    border-radius:20px; padding:8px 14px; cursor:pointer; display:none;
+  }
+  #hint{
+    position:absolute; bottom:18px; left:50%; transform:translateX(-50%); z-index:8;
+    font-family:'DM Sans',sans-serif; font-size:12px; letter-spacing:1px; color:var(--paper);
+    opacity:.55; pointer-events:none; text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<div id="gameWrap">
+  <canvas id="canvas"></canvas>
+  <div id="hazardFrame"></div>
+  <div id="titleBar">DEMOLITION</div>
+
+  <div id="hud">
+    <div class="hud-pill" id="timerPill">
+      <div>
+        <div class="hud-label">TIME</div>
+        <div class="hud-value" id="timeVal">30</div>
+      </div>
+    </div>
+    <div class="hud-pill">
+      <div>
+        <div class="hud-label">SHOTS</div>
+        <div id="ballsRow"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="hint">TAP THE STRUCTURE TO AIM YOUR SHOT</div>
+  <button id="installBtn">⬇ INSTALL APP</button>
+
+  <div class="overlay" id="startOverlay">
+    <div class="card">
+      <div class="sub">HYPERCASUAL · PHYSICS CHAOS</div>
+      <h1>DEMOLITION</h1>
+      <p>You've got 6 wrecking shots and 30 seconds. Tap where you want to hit — read the structure and find its weak point. Hit the barrels for chain reactions. Level as much as you can.</p>
+      <button class="btn" id="startBtn">START WRECKING</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="resultOverlay" style="display:none;">
+    <div class="card">
+      <div id="resultStamp">SITE CLEARED</div>
+      <div id="resultPct">0%</div>
+      <div id="resultScore">DESTROYED · SCORE 0 · BEST 0</div>
+      <button class="btn" id="retryBtn">WRECK AGAIN</button>
+      <button class="btn secondary" id="shareBtn">📋 COPY RESULT</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
